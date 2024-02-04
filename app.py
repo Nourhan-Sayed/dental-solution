@@ -18,7 +18,6 @@ import seaborn as sns  # Import Seaborn
 
 
 
-
 uploaded_file = st.file_uploader(label="Upload a file", type=['csv', 'xlsx'])
 if uploaded_file is not None:
     try:
@@ -34,30 +33,58 @@ choice = st.sidebar.selectbox("Select a tab", menu)
 # Periodontal tab content
 if choice == "Periodontal diseases":
     st.title("Periodontal Disease")
-    selected_option = st.sidebar.selectbox("choose available correlation problems", 
-                                       ["gingivitis and pd", "periodontitis and cal"])
+    selected_option = st.sidebar.selectbox("Choose available correlation problems", 
+                                       ["gingivitis and probing depth", "periodontitis and clinical attachment loss"])
     
-    if selected_option == "gingivitis and pd":
-        df['gingivitis'] = df['probing depth'].apply(lambda x: 0 if x > 4 else 1)
+    if selected_option == "gingivitis and probing depth":
+        # Select the first 300 subjects
+        df_subset = df.head(300)
 
-        depth_counts = df['probing depth'].value_counts().sort_index()
+        selected_rows = df_subset[df_subset['probing depth'].isin([3, 4])]
+        mean_gingivitis = 0.5  # Adjust mean as needed
+        std_dev_gingivitis = 0.1  # Adjust standard deviation as needed
 
-        # Create a bar plot to visualize the number of people with different probing depths
+        # Generate values following a normal distribution between 0 and 1
+        gingivitis_values = np.random.normal(mean_gingivitis, std_dev_gingivitis, len(selected_rows))
+
+        # Convert the generated values to 0 (no gingivitis) or 1 (gingivitis) based on a threshold
+        threshold = 0.5  # Adjust the threshold as needed
+        gingivitis_values = (gingivitis_values > threshold).astype(int)
+
+        # Assign the converted values to the "gingivitis" column for the selected rows
+        selected_rows['gingivitis'] = gingivitis_values
+
+        # Populate the rest of the DataFrame based on the probing depth rule for the subset
+        df_subset['gingivitis'] = 0  # Default to 0 for all rows
+        df_subset.loc[df_subset['probing depth'] < 3, 'gingivitis'] = 0
+        df_subset.loc[df_subset['probing depth'] > 4, 'gingivitis'] = 1
+
+        # Create a plot to visualize the data for the subset
+        sns.set(style="whitegrid")
+        plt.figure(figsize=(10, 6))
+        sns.scatterplot(data=df_subset, x='probing depth', y='gingivitis', hue='gingivitis', size='gingivitis', palette='Set1')
+
+        # Save the updated data back to the Excel file for the subset
+        df_subset.to_excel('generated_gingivitis_subset.xlsx', index=False)
+
+        depth_counts = df_subset['probing depth'].value_counts().sort_index()
+
+        # Create a bar plot to visualize the number of people with different probing depths in the subset
         fig, ax = plt.subplots()
         ax.bar(depth_counts.index, depth_counts.values)
         ax.set_xlabel('Probing Depth')
         ax.set_ylabel('Number of People')
-        ax.set_title('Number of People with Different Probing Depths')
+        ax.set_title('Number of People with Different Probing Depths in the Subset')
 
         # Display the chart in Streamlit
         st.pyplot(fig)
 
-        # Create a stacked bar plot to visualize the number of people with different gingivitis levels for each probing depth
+        # Create a stacked bar plot to visualize the number of people with different gingivitis levels for each probing depth in the subset
         fig, ax = plt.subplots(figsize=(8, 6))
-        df.groupby(['probing depth', 'gingivitis']).size().unstack().plot(kind='bar', stacked=True, ax=ax)
+        df_subset.groupby(['probing depth', 'gingivitis']).size().unstack().plot(kind='bar', stacked=True, ax=ax)
         ax.set_xlabel('Probing Depth')
         ax.set_ylabel('Number of People')
-        ax.set_title('Number of People with Different Gingivitis Levels for Each Probing Depth')
+        ax.set_title('Number of People with Different Gingivitis Levels for Each Probing Depth in the Subset')
         ax.legend(title='Gingivitis')
 
         # Rotate the x-axis labels
@@ -65,18 +92,37 @@ if choice == "Periodontal diseases":
 
         # Display the chart
         plt.show()
+        # 1. Scatter Plot: Number of People Having Gingivitis
+        plt.figure(figsize=(10, 6))
+        plt.subplot(121)
+        gingivitis_counts = df_subset['gingivitis'].value_counts().sort_index()
+        gingivitis_labels = ['No Gingivitis', 'Gingivitis']
+        plt.scatter(gingivitis_labels, gingivitis_counts, c='blue', s=100)
+        plt.xlabel('Gingivitis')
+        plt.ylabel('Number of People')
+        plt.title('Number of People Having Gingivitis')
+
+        # 2. Probing Depth vs. Gingivitis
+        plt.subplot(122)
+        sns.scatterplot(data=df_subset, x='probing depth', y='gingivitis', hue='gingivitis', palette='Set1')
+        plt.xlabel('Probing Depth')
+        plt.ylabel('Gingivitis')
+        plt.title('Probing Depth vs. Gingivitis')
+
+        plt.tight_layout()
+        plt.show()
 
 
-        # Display the chart in Streamlit
-        st.pyplot(fig)
 
-    elif selected_option == "periodontitis and cal":
+    elif selected_option == "periodontitis and clinical attachment loss":
         df['peridontitis'] = df['Clinical Attachment Loss'].apply(lambda x: 0 if x > 0 else 1)
         periodontitis_counts = df['peridontitis'].value_counts()
 
         fig, ax = plt.subplots()
-        ax.bar(periodontitis_counts.index, periodontitis_counts.values)
-        ax.set_xlabel('Peridontitis')
+        # Add color mapping
+        colors = ['blue', 'green']
+        ax.bar(periodontitis_counts.index, periodontitis_counts.values, color=colors)
+        ax.set_xlabel('Periodontitis')
         ax.set_ylabel('Number of People')
         ax.set_title('Number of People with and without Periodontitis')
         st.pyplot(fig)
@@ -84,13 +130,18 @@ if choice == "Periodontal diseases":
         cal_counts = df.groupby('peridontitis')['Clinical Attachment Loss'].value_counts().unstack(0)
 
         fig, ax = plt.subplots()
-        cal_counts.plot(kind='bar', stacked=True, ax=ax)
+        # Add color mapping
+        colors = ['blue', 'green']
+        cal_counts.plot(kind='bar', stacked=True, ax=ax, color=colors)
         ax.set_xlabel('Clinical Attachment Loss')
         ax.set_ylabel('Number of People')
         ax.set_title('Number of People with Different Clinical Attachment Loss for Each Periodontitis Group')
-        ax.legend(title='Peridontitis')
+        ax.legend(title='Periodontitis')
         st.pyplot(fig)
 
+
+    
+    st.markdown("<h3>The Dataset:</h3>", unsafe_allow_html=True)
     df
     df.to_excel('simulated_data_edited.xlsx', index=False)
 
@@ -233,21 +284,21 @@ elif choice == "Caries diseases":  # Corrected the typo in the tab name
                 plt.title('Confusion Matrix')
                 st.pyplot(plt)
 
-    def display_confusion_matrix(y_true, y_pred):
-        confusion = confusion_matrix(y_true, y_pred)
-        plt.figure(figsize=(8, 6))
-        sns.heatmap(confusion, annot=True, fmt='d', cmap='Blues')
-        plt.xlabel('Predicted')
-        plt.ylabel('Actual')
-        plt.title('Confusion Matrix')
-        st.pyplot(plt)
-        # Additional metrics
-    if additional_metrics:
-        st.markdown("<h2>Classification Report:</h2>", unsafe_allow_html=True)
-        # Convert the classification report dictionary to a DataFrame
-        classification_df = pd.DataFrame(classification_rep)
-        # Display the DataFrame as a table
-        st.table(classification_df)
+        def display_confusion_matrix(y_true, y_pred):
+            confusion = confusion_matrix(y_true, y_pred)
+            plt.figure(figsize=(8, 6))
+            sns.heatmap(confusion, annot=True, fmt='d', cmap='Blues')
+            plt.xlabel('Predicted')
+            plt.ylabel('Actual')
+            plt.title('Confusion Matrix')
+            st.pyplot(plt)
+            # Additional metrics
+        if additional_metrics:
+            st.markdown("<h2>Classification Report:</h2>", unsafe_allow_html=True)
+            # Convert the classification report dictionary to a DataFrame
+            classification_df = pd.DataFrame(classification_rep)
+            # Display the DataFrame as a table
+            st.table(classification_df)
 
 ##-------------------------------------------------------
 
@@ -395,5 +446,5 @@ elif choice == "Caries diseases":  # Corrected the typo in the tab name
         classification_df = pd.DataFrame(classification_rep)
         # Display the DataFrame as a table
         st.table(classification_df)
-        
+            
 
